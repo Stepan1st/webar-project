@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WebAR Рабочая версия</title>
+    
+    <!-- ТОЛЬКО эти две библиотеки -->
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@master/aframe/build/aframe-ar.js"></script>
+    
+    <style>
+        /* АБСОЛЮТНО МИНИМАЛЬНЫЕ СТИЛИ */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: black;
+        }
+        
+        #ar-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+        
+        #ar-container a-scene {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Управление */
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border: 2px solid white;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        #status {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 10px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <!-- Статус -->
+    <div id="status">Загрузка...</div>
+    
+    <!-- Основной контейнер -->
+    <div id="ar-container" class="hidden">
+        <!-- ПРОСТАЯ AR СЦЕНА -->
+        <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;">
+            <!-- Маркер Hiro -->
+            <a-marker id="main-marker" preset="hiro" emitevents="true">
+                <!-- ПРОСТОЙ КУБ -->
+                <a-box 
+                    id="model-container"
+                    color="red"
+                    position="0 0.5 0"
+                    scale="0.5 0.5 0.5"
+                    animation="property: rotation; to: 0 360 0; loop: true; dur: 5000">
+                </a-box>
+            </a-marker>
+            
+            <a-entity camera></a-entity>
+        </a-scene>
+        
+        <!-- Управление -->
+        <div id="controls" class="hidden">
+            <button class="control-btn" onclick="rotateModel(-45)">↶</button>
+            <button class="control-btn" onclick="rotateModel(45)">↷</button>
+            <button class="control-btn" onclick="resetModel()">⟳</button>
+        </div>
+    </div>
+    
+    <!-- Стартовый экран -->
+    <div id="start-screen" style="position:fixed; top:0; left:0; width:100%; height:100%; background:black; color:white; display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:2000;">
+        <h1>🎯 WebAR Демо</h1>
+        <p style="margin:20px; text-align:center;">Наведите камеру на маркер Hiro</p>
+        <button id="start-btn" style="padding:15px 30px; font-size:18px; background:#2196F3; color:white; border:none; border-radius:25px; cursor:pointer;">
+            🚀 Начать
+        </button>
+        <div style="margin-top:30px;">
+            <img src="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" 
+                 style="width:150px; border:3px solid white; border-radius:10px;">
+        </div>
+    </div>
+
+    <script>
+        // Глобальные переменные
+        let model = null;
+        let marker = null;
+        
+        // Старт приложения
+        document.getElementById('start-btn').addEventListener('click', function() {
+            console.log('🚀 Запуск AR...');
+            
+            // Скрываем стартовый экран
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('ar-container').classList.remove('hidden');
+            
+            // Активируем камеру (для iOS)
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(stream => {
+                        console.log('✅ Камера активирована');
+                        updateStatus('Камера работает! Наведите на маркер');
+                    })
+                    .catch(error => {
+                        console.warn('⚠️ Камера:', error.message);
+                        updateStatus('Камера не доступна: ' + error.message);
+                    });
+            }
+            
+            // Настройка через 1 секунду
+            setTimeout(setupAR, 1000);
+        });
+        
+        function setupAR() {
+            console.log('⚙️ Настройка AR...');
+            
+            // Находим элементы
+            model = document.getElementById('model-container');
+            marker = document.getElementById('main-marker');
+            
+            console.log('Модель:', model);
+            console.log('Маркер:', marker);
+            
+            if (!model) {
+                console.error('❌ Модель не найдена!');
+                updateStatus('Ошибка: модель не найдена');
+                return;
+            }
+            
+            // События маркера
+            if (marker) {
+                marker.addEventListener('markerFound', function() {
+                    console.log('🎯 Маркер найден!');
+                    updateStatus('Маркер найден!');
+                    document.getElementById('controls').classList.remove('hidden');
+                    
+                    // Подсветка модели
+                    model.setAttribute('color', 'green');
+                    setTimeout(() => model.setAttribute('color', 'red'), 500);
+                });
+                
+                marker.addEventListener('markerLost', function() {
+                    console.log('⚠️ Маркер потерян');
+                    updateStatus('Наведите на маркер');
+                    document.getElementById('controls').classList.add('hidden');
+                });
+            }
+            
+            updateStatus('Готово! Наведите на маркер');
+        }
+        
+        function rotateModel(angle) {
+            if (!model) return;
+            
+            const rotation = model.getAttribute('rotation') || {x:0, y:0, z:0};
+            model.setAttribute('rotation', {
+                x: rotation.x,
+                y: rotation.y + angle,
+                z: rotation.z
+            });
+            
+            console.log('Поворот:', angle, 'градусов');
+        }
+        
+        function resetModel() {
+            if (!model) return;
+            
+            model.setAttribute('rotation', {x:0, y:0, z:0});
+            model.setAttribute('scale', '0.5 0.5 0.5');
+            console.log('Сброс модели');
+        }
+        
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+            console.log('📢 Статус:', message);
+        }
+        
+        // Автостарт на десктопе (не для iOS)
+        if (!/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+            setTimeout(() => {
+                console.log('🖥️ Автостарт для десктопа');
+                document.getElementById('start-btn').click();
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
